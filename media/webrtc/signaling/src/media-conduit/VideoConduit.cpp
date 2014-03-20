@@ -10,6 +10,7 @@
 
 #include "VideoConduit.h"
 #include "AudioConduit.h"
+#include "YuvStamper.h"
 #include "nsThreadUtils.h"
 
 #include "LoadManager.h"
@@ -79,6 +80,11 @@ WebrtcVideoConduit::~WebrtcVideoConduit()
         mOtherDirection->mPtrExtCapture = nullptr;
     }
   }
+
+   if (mPtrExtCodec) {
+     mPtrExtCodec->Release();
+     mPtrExtCodec = NULL;
+   }
 
   //Deal with External Renderer
   if(mPtrViERender)
@@ -269,6 +275,13 @@ MediaConduitErrorCode WebrtcVideoConduit::Init(WebrtcVideoConduit *other)
     return kMediaConduitSessionNotInited;
   }
 
+  mPtrExtCodec = webrtc::ViEExternalCodec::GetInterface(mVideoEngine);
+  if (!mPtrExtCodec) {
+    CSFLogError(logTag, "%s Unable to get external codec interface: %d ",
+                __FUNCTION__,mPtrViEBase->LastError());
+    return kMediaConduitSessionNotInited;
+  }
+
   if( !(mPtrRTP = webrtc::ViERTP_RTCP::GetInterface(mVideoEngine)))
   {
     CSFLogError(logTag, "%s Unable to get video RTCP interface ", __FUNCTION__);
@@ -340,6 +353,11 @@ MediaConduitErrorCode WebrtcVideoConduit::Init(WebrtcVideoConduit *other)
       return kMediaConduitRTCPStatusError;
     }
   }
+
+#ifdef VIDEOCONDUIT_INSERT_TIMESTAMP
+  mStartTime = PR_IntervalNow();
+  mSentFrames = 0;
+#endif
 
   CSFLogError(logTag, "%s Initialization Done", __FUNCTION__);
   return kMediaConduitNoError;
@@ -844,6 +862,10 @@ WebrtcVideoConduit::SendVideoFrame(unsigned char* video_frame,
                                    uint64_t capture_time)
 {
   CSFLogDebug(logTag,  "%s ", __FUNCTION__);
+#ifdef VIDEOCONDUIT_INSERT_TIMESTAMP
+  PRIntervalTime now = PR_IntervalNow();
+  uint32_t delta_ms = PR_IntervalToMilliseconds(now - mStartTime);
+#endif
 
   //check for  the parameters sanity
   if(!video_frame || video_frame_length == 0 ||
@@ -858,6 +880,20 @@ WebrtcVideoConduit::SendVideoFrame(unsigned char* video_frame,
   switch (video_type) {
     case kVideoI420:
       type = webrtc::kVideoI420;
+#ifdef VIDEOCONDUIT_INSERT_TIMESTAMP
+      YuvStamper::Write(width,
+			height,
+			width,
+			reinterpret_cast<uint8_t*>(video_frame),
+			delta_ms, width/2, height/50);
+
+      ++mSentFrames;
+      YuvStamper::Write(width,
+			height,
+			width,
+			reinterpret_cast<uint8_t*>(video_frame),
+			mSentFrames, width/2, height/50 + 30);
+#endif
       break;
     case kVideoNV21:
       type = webrtc::kVideoNV21;
@@ -1158,6 +1194,28 @@ WebrtcVideoConduit::DumpCodecDB() const
     CSFLogDebug(logTag,"Payload Max Frame Size: %d", mRecvCodecList[i]->mMaxFrameSize);
     CSFLogDebug(logTag,"Payload Max Frame Rate: %d", mRecvCodecList[i]->mMaxFrameRate);
   }
+}
+
+MediaConduitErrorCode
+WebrtcVideoConduit::SetExternalSendCodec(int pltype,
+                                         VideoEncoder* encoder) {
+  mPtrExtCodec->RegisterExternalSendCodec(mChannel,
+                                          pltype,
+                                          static_cast<
+                                          WebrtcVideoEncoder*>(encoder),
+					  false);
+
+  return kMediaConduitNoError;
+}
+
+MediaConduitErrorCode
+WebrtcVideoConduit::SetExternalRecvCodec(int pltype,
+					 VideoDecoder* decoder) {
+  mPtrExtCodec->RegisterExternalReceiveCodec(mChannel,
+                                             pltype,
+                                             static_cast<
+                                             WebrtcVideoDecoder*>(decoder));
+  return kMediaConduitNoError;
 }
 
 }// end namespace

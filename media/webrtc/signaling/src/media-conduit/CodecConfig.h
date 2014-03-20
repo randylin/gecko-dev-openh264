@@ -1,4 +1,3 @@
-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -78,6 +77,8 @@ struct VideoCodecConfig
                                      mMaxFrameRate(0),
                                      mLoadManager(load_manager)
   {
+    if (mName == "H264_P0")
+      mName = "I420";
   }
 
   VideoCodecConfig(int type,
@@ -93,6 +94,8 @@ struct VideoCodecConfig
                                          mMaxFrameRate(max_fr),
                                          mLoadManager(load_manager)
   {
+    if (mName == "H264_P0")
+      mName = "I420";
   }
 
 
