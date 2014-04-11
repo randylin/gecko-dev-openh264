@@ -68,7 +68,7 @@
         '../../../netwerk/srtp/src/crypto/include',
         '../../../ipc/chromium/src',
         '<@(openh264)/codec/api/svc',
-        '<@(openh264)/codec/common',
+        '<@(openh264)/codec/common/inc',
         '<@(openh264)/codec/encoder/core/inc',
         '<@(openh264)/codec/encoder/plus/inc',
         '<@(openh264)/codec/decoder/core/inc',
