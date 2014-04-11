@@ -165,7 +165,9 @@ void WebrtcOpenH264VideoEncoder::Encode_w(
     webrtc::I420VideoFrame* inputImage,
     webrtc::VideoFrameType frame_type) {
   SFrameBSInfo encoded;
+  memset(&encoded, 0, sizeof(SFrameBSInfo));
   SSourcePicture src;
+  memset(&src, 0, sizeof(SSourcePicture));
 
   src.iColorFormat = videoFormatI420;
   src.iStride[0] = inputImage->stride(webrtc::kYPlane);
@@ -185,14 +187,20 @@ void WebrtcOpenH264VideoEncoder::Encode_w(
   const SSourcePicture* pics = &src;
 
   PRIntervalTime t0 = PR_IntervalNow();
-  int type = encoder_->EncodeFrame(pics, &encoded);
+  int rv = encoder_->EncodeFrame(pics, &encoded);
   PRIntervalTime t1 = PR_IntervalNow();
 
   MOZ_MTLOG(ML_DEBUG, "Encoding time: " << PR_IntervalToMilliseconds(
       t1 - t0) << "ms");
 
+  if (rv != cmResultSuccess) {
+    MOZ_MTLOG(ML_ERROR, "Couldn't encode frame. Error = " << rv);
+    delete inputImage;
+    return;
+  }
+
   // Translate int to enum
-  switch (type) {
+  switch (encoded.eOutputFrameType) {
     case videoFrameTypeIDR:
     case videoFrameTypeI:
     case videoFrameTypeP:
@@ -211,7 +219,7 @@ void WebrtcOpenH264VideoEncoder::Encode_w(
       break;
     case videoFrameTypeIPMixed://this type is currently not suppported
     case videoFrameTypeInvalid:
-      MOZ_MTLOG(ML_ERROR, "Couldn't encode frame. Error = " << type);
+      MOZ_MTLOG(ML_ERROR, "Couldn't encode frame type. Type = " << encoded.eOutputFrameType);
       break;
     default:
       // The API is defined as returning a type.
