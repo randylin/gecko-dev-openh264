@@ -178,7 +178,7 @@ VCMEncodedFrameCallback::Encoded(
     const RTPFragmentationHeader* fragmentationHeader)
 {
     FrameType frameType = VCMEncodedFrame::ConvertFrameType(encodedImage._frameType);
-
+    printf("encoded %x %x %x %x\n", encodedImage._buffer[0], encodedImage._buffer[1], encodedImage._buffer[2], encodedImage._buffer[3]);
     uint32_t encodedBytes = 0;
     if (_sendCallback != NULL)
     {

@@ -71,7 +71,9 @@ struct EncodedFrame {
       tmp += lengths[i];
     }
 
-    return new EncodedFrame(buffer.forget(), length, length,
+    ScopedDeleteArray<uint8_t> buffer2(new uint8_t[length -4 ]);
+memcpy(buffer2, buffer + 4, length -4); 
+    return new EncodedFrame(buffer2.forget(), length -4, length -4,
                             width, height, timestamp, frame_type);
   }
 
@@ -211,6 +213,7 @@ void WebrtcOpenH264VideoEncoder::Encode_w(
                                  inputImage->height(),
                                  inputImage->timestamp(),
                                  frame_type));
+    //    printf("encoded   %x %x %x %x", encoded_frame->image, encoded_frame->image[1], encoded_frame->image[2], encoded_frame->image[3]);
         callback_->Encoded(encoded_frame->image(), NULL, NULL);
       }
       break;
@@ -326,7 +329,7 @@ int32_t WebrtcOpenH264VideoDecoder::InitDecode(
   param.iOutputColorFormat = videoFormatI420;
   param.uiTargetDqLayer = UCHAR_MAX;  // TODO(ekr@rtfm.com): correct?
   param.uiEcActiveFlag = 1; // Error concealment on.
-  param.sVideoProperty.eVideoBsType = VIDEO_BITSTREAM_DEFAULT;
+  param.sVideoProperty.eVideoBsType = VIDEO_BITSTREAM_AVC;
 
   long lrv = decoder_->Initialize(&param);
   if (lrv) {
@@ -335,7 +338,7 @@ int32_t WebrtcOpenH264VideoDecoder::InitDecode(
 
   return WEBRTC_VIDEO_CODEC_OK;
 }
-
+static int cnt;
 int32_t WebrtcOpenH264VideoDecoder::Decode(
     const webrtc::EncodedImage& inputImage,
     bool missingFrames,
@@ -346,11 +349,20 @@ int32_t WebrtcOpenH264VideoDecoder::Decode(
   SBufferInfo decoded;
   memset(&decoded, 0, sizeof(decoded));
   void *data[3] = {nullptr, nullptr, nullptr};
+  uint8_t data3[4] = {0x0, 0x0, 0x0, 0x1};
+void* buf = malloc(inputImage._length + 4);
+memcpy(buf, data3, 4);
+memcpy(buf+4, inputImage._buffer, inputImage._length);
   MOZ_MTLOG(ML_DEBUG, "Decoding frame input length=" << inputImage._length);
-  int rv = decoder_->DecodeFrame2(inputImage._buffer,
-                                 inputImage._length,
+
+  int rv = decoder_->DecodeFrame2((uint8_t*)buf,
+                                 4 + inputImage._length ,
                                  data,
                                  &decoded);
+  for (int i = 0; i <5; i++) {
+	  printf("%x ", (buf+i));
+  }
+  printf("\nDecoding frame input length= %d  cnt = %d rv = %d ts = %ld  ftp %d h %d  w %d\n", inputImage._length, ++cnt, rv, inputImage._timeStamp, inputImage._frameType, inputImage._encodedHeight, inputImage._encodedWidth);
   if (rv) {
     MOZ_MTLOG(ML_ERROR, "Decoding error rv=" << rv);
     return WEBRTC_VIDEO_CODEC_ERROR;
